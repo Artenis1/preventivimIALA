@@ -8,7 +8,7 @@ Mos vendosni çelësa në frontend, Git, URL publike ose log-e. `.env.example` p
 
 ## Excel
 
-Pranohen `.xlsx` dhe `.xlsm` brenda kufijve të madhësisë. Skedarët trajtohen si të dhëna; makrot nuk ekzekutohen. Nuk mbështetet `.xls`; konvertojeni jashtë platformës me një mjet të besuar. Emri i ngarkimit nuk përdoret si shteg ruajtjeje. Parser-i kontrollon strukturën ZIP dhe kufijtë e përpunimit. Eksporti i shabllonit del në `.xlsx` pa makro. Formulat, grafikët, kontrollet dhe lidhjet e veçanta të shablloneve komplekse mund të mos ruhen në mënyrë identike nga openpyxl.
+Pranohen `.xlsx` dhe `.xlsm` brenda kufijve të madhësisë. Skedarët trajtohen si të dhëna; makrot nuk ekzekutohen. Importi në bazën e çmimeve mbështet edhe `.xls` binar me `xlrd`, duke lexuar vetëm të dhënat e ruajtura. Importi i BOQ në projekte vazhdon të pranojë `.xlsx` dhe `.xlsm`. Emri i ngarkimit nuk përdoret si shteg ruajtjeje. Parser-i kontrollon strukturën ZIP dhe kufijtë e përpunimit. Eksporti i shabllonit del në `.xlsx` pa makro. Formulat, grafikët, kontrollet dhe lidhjet e veçanta të shablloneve komplekse mund të mos ruhen në mënyrë identike nga openpyxl.
 
 Tekstet në eksport shkruhen si tekst për të kufizuar injektimin e formulave. Kjo nuk e bën çdo workbook origjinal të besuar: mos aktivizoni lidhje të jashtme ose përmbajtje aktive në Excel vetëm sepse skedari është eksportuar nga sistemi. Ruani origjinalet për auditim, me politikë fshirjeje dhe kontroll aksesi. Mos ngarkoni dokumente pa autorizimin e pronarit të të dhënave.
 

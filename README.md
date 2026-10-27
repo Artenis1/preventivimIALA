@@ -26,6 +26,16 @@ Hapni `http://localhost:8080` dhe regjistroni llogarinë tuaj. Nuk ka përdorues
 5. Miratoni rreshtat, kontrolloni përllogaritjet dhe finalizoni me konfirmim. Çmimet ruhen si fotografi e përzgjedhjes; ndryshimi i databazës nuk ndryshon fshehurazi preventivin.
 6. Eksportoni preventivin standard ose një kopje të plotësuar të shabllonit fillestar. Për shabllone komplekse ruajtja e çdo elementi vizual nuk garantohet; kontrolloni skedarin përfundimtar në Excel.
 
+## Importi në bazën e çmimeve
+
+Butoni **Baza e çmimeve → Importo** pranon `.xlsx`, `.xlsm` dhe `.xls` binar përmes `xlrd` (makrot nuk ekzekutohen). Para ruajtjes shfaqen fletët, titujt, hartëzimi dhe gabimet sipas numrit origjinal të rreshtit. Zgjidhet fleta e parë, pavarësisht emrit dhe fletës aktive. Titujt kërkohen në 50 rreshtat e parë; shkronjat e mëdha/vogla, hapësirat, thekset, nënvizat dhe emërtimet e zakonshme shqip/anglisht normalizohen. Për tituj të pazakontë, zgjidhni rreshtin dhe kolonat manualisht, pastaj **Rikontrollo importin**.
+
+Kërkohen njësia, çmimi real dhe të paktën emërtimi ose përshkrimi. Përshkrimi/emërtimi plotësohen nga njëri-tjetri; kodi që mungon gjenerohet nga prefiksi i dukshëm dhe rreshti i Excel-it. Zgjidhni shprehimisht ALL ose EUR kur monedha nuk është në skedar; kjo nuk kryen konvertim valutor. BOQ pa çmime ngarkohen te **Importo preventivin** për vlerësim në projekt, jo si katalog çmimesh. Importi i BOQ-ve në projekt vazhdon të pranojë `.xlsx`/`.xlsm`.
+
+Çmimet e papranueshme, negative, jo të fundme, me më shumë se gjashtë shifra dhjetore ose kodet e dyfishuara bllokojnë ruajtjen e gjithë importit. Nuk ruhet fshehurazi vetëm nëngrupi i vlefshëm. Ndarësit e përzier pranojnë formatet `1.234,56` dhe `1,234.56`; një ndarës i vetëm trajtohet si dhjetor. Tekste të paqarta si `1,234` tregojnë paralajmërim dhe vlerën e saktë të interpretuar për konfirmim. Qelizat numerike të Excel-it nuk kërkojnë hamendësim ndarësish. Gabimet e formulave ose mungesa e një vlere të ruajtur në cache duhet të korrigjohen në Excel; sistemi nuk ekzekuton formula ose makro.
+
+**Konfirmo importin** ruan në mënyrë atomike vetëm pamjen paraprake të kontrolluar. Pamjet paraprake janë private për llogarinë, skadojnë pas 30 minutash dhe nuk mbishkruajnë çmime ekzistuese. Endpoint-i i vjetër `/api/prices/import` mbetet për klientët ekzistues; ndërfaqja përdor `/preview` dhe `/commit`. Formati i eksportit nuk ndryshon. Docker zbaton migrimin e ri automatikisht gjatë nisjes; lokalisht ekzekutoni `alembic upgrade head` përpara nisjes së backend-it.
+
 ## Struktura
 
 ```text
@@ -68,7 +78,7 @@ Konfigurimi AI është vetëm në backend: `AI_BASE_URL`, `AI_API_KEY`, `AI_MODE
 
 ## Teknologjitë dhe operimi
 
-Python 3.12; FastAPI 0.162.0; SQLAlchemy 2.0.40; Alembic 1.15.2; psycopg 3.2.6; openpyxl 3.1.5; pgvector Python 0.4.1; PostgreSQL 16 me zgjerimin pgvector. Varësitë kryesore Python janë deklaruar në `backend/requirements.txt`; të gjitha varësitë transitore dhe hash-et fiksohen në `backend/requirements.lock`; versionet e frontend-it fiksohen nga `frontend/package-lock.json`. Imazhet bazë në Dockerfile përdorin versione konkrete; për një proces publikimi të kontrolluar regjistroni edhe digest-in e çdo imazhi të ndërtuar dhe të databazës.
+Python 3.12; FastAPI 0.162.0; SQLAlchemy 2.0.40; Alembic 1.15.2; psycopg 3.2.6; openpyxl 3.1.5; xlrd 2.0.2 për çmime `.xls`; pgvector Python 0.4.1; PostgreSQL 16 me zgjerimin pgvector. Varësitë kryesore Python janë deklaruar në `backend/requirements.txt`; të gjitha varësitë transitore dhe hash-et fiksohen në `backend/requirements.lock`; versionet e frontend-it fiksohen nga `frontend/package-lock.json`. Imazhet bazë në Dockerfile përdorin versione konkrete; për një proces publikimi të kontrolluar regjistroni edhe digest-in e çdo imazhi të ndërtuar dhe të databazës.
 
 - [Zhvillimi lokal](docs/development.md)
 - [Vendosja në cloud](docs/deployment.md)

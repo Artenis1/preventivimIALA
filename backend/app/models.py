@@ -185,3 +185,13 @@ class ResourceVersion(Base):
     direct_cost: Mapped[Decimal] = mapped_column(Numeric(20, 6))
     reason: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class PriceImportPreview(Base):
+    """Short-lived, owner-scoped validated import; no catalog writes before commit."""
+
+    __tablename__ = "price_import_previews"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    payload: Mapped[dict] = mapped_column(JSON)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)

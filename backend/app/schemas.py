@@ -132,3 +132,8 @@ class SettingsInput(Input):
             if key not in ("EUR:ALL", "ALL:EUR") or value <= 0 or value > 1000000:
                 raise ValueError("Kursi duhet të jetë pozitiv, EUR:ALL ose ALL:EUR")
         return v
+
+
+class PriceImportConfirmation(Input):
+    preview_id: str = Field(pattern=r"^[a-f0-9]{32}$")
+    confirm: Literal[True]

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import {
   Plus,
   Search,
@@ -9,6 +9,7 @@ import {
   Layers3,
 } from "lucide-react";
 import { api, send, upload, download } from "./api";
+import PriceImport from "./PriceImport";
 import type { Price, Page } from "./types";
 import { categories } from "./i18n";
 import { money, list } from "./utils";
@@ -56,8 +57,8 @@ export default function Prices({
     [edit, setEdit] = useState<any>(null),
     [archive, setArchive] = useState<Price | null>(null),
     [resource, setResource] = useState<Price | null>(null),
-    [message, setMessage] = useState("");
-  const input = useRef<HTMLInputElement>(null);
+    [message, setMessage] = useState(""),
+    [importing, setImporting] = useState(false);
   const load = () => {
     setLoading(true);
     api("/prices?include_inactive=true")
@@ -134,32 +135,10 @@ export default function Prices({
             />
             Arkivuar
           </label>
-          <button className="secondary" onClick={() => input.current?.click()}>
+          <button className="secondary" onClick={() => setImporting(true)}>
             <Upload size={16} />
             Importo
           </button>
-          <input
-            ref={input}
-            type="file"
-            hidden
-            accept=".xlsx,.xlsm"
-            onChange={async (e) => {
-              const file = e.target.files?.[0];
-              if (!file) return;
-              try {
-                const result = await upload("/prices/import", file);
-                setMessage(
-                  `Importi përfundoi: ${result.imported ?? result.count ?? ""} zëra.`,
-                );
-                load();
-                onChange?.();
-              } catch (e) {
-                setError(e);
-              } finally {
-                e.target.value = "";
-              }
-            }}
-          />
           <button
             className="secondary"
             onClick={() =>
@@ -266,6 +245,19 @@ export default function Prices({
           konfiguruar.
         </div>
       </div>
+      {importing && (
+        <PriceImport
+          onClose={() => setImporting(false)}
+          onImported={(result) => {
+            setMessage(
+              `Importi përfundoi: ${result.imported ?? result.count ?? ""} zëra.`,
+            );
+            setImporting(false);
+            load();
+            onChange?.();
+          }}
+        />
+      )}
       {edit && (
         <PriceForm
           value={edit}
