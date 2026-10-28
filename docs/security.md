@@ -18,7 +18,7 @@ Me `AI_API_KEY`, `EMBEDDING_MODEL` dhe/ose `AI_MODEL` të konfiguruar, backend-i
 
 Zgjidhni ofrues me kushte ruajtjeje dhe përpunimi të përshtatshme për projektet tuaja. Merrni pëlqimin e nevojshëm para dërgimit të përshkrimeve konfidenciale jashtë organizatës. Për punë pa dërgim të jashtëm lini çelësin/modelin bosh ose përdorni një endpoint të vetëhostuar kompatibël. Mos ndryshoni `AI_BASE_URL` në destinacion të pabesuar. Mbani verifikimin TLS aktiv.
 
-Teksti i dokumentit trajtohet si e dhënë, jo si udhëzim për të ndryshuar politika. Përgjigjja e modelit është sugjerim, mund të dështojë ose të gabojë dhe nuk miraton automatikisht çmime. Kontrasti ndërmjet llojeve të betonit, kapaciteteve, njësive dhe scope-it të punës kërkon shqyrtim njerëzor. Confidence nuk është probabilitet i garantuar i saktësisë.
+Teksti i dokumentit trajtohet si e dhënë, jo si udhëzim për të ndryshuar politika. Përgjigjja e modelit mund të dështojë ose të gabojë. Kandidati me rezultatin më të lartë miratohet automatikisht pavarësisht besimit; përqindja dhe dallimet teknike mbeten të dukshme për kontroll. Kontrasti ndërmjet llojeve të betonit, kapaciteteve, njësive dhe scope-it të punës kërkon shqyrtim njerëzor. Confidence nuk është probabilitet i garantuar i saktësisë.
 
 ## Kufizimet për prodhim
 

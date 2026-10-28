@@ -1,7 +1,7 @@
-"""Conservative multilingual BOQ matching with optional OpenAI-compatible AI.
+"""Multilingual BOQ matching with automatic approval of the best candidate.
 
 Only descriptions, units and technical/scoping fields are sent externally. AI output
-is advisory: technical conflicts always require review, even for exact item codes.
+provides scores; technical conflicts remain visible alongside automatic approvals.
 """
 
 from __future__ import annotations
@@ -448,7 +448,6 @@ async def match_row(
     config = _config(config)
     if not (
         0
-        <= config.low_threshold
         <= config.medium_threshold
         <= config.high_threshold
         <= 1
@@ -491,7 +490,7 @@ async def match_row(
         "method": "none",
         "confidence": 0.0,
         "classification": "no_match",
-        "explanation": "Nuk u gjet përputhje e besueshme. Kërkohet zgjidhje manuale.",
+        "explanation": "No match found",
         "discrepancies": [],
         "alternatives": [],
         "unit_compatible": False,
@@ -499,7 +498,7 @@ async def match_row(
         "review_status": "unmatched",
         "ai_unavailable": False,
     }
-    if not allowed or not normalized:
+    if not allowed:
         return base
     scored = []
     row_words = keywords(str(row.get("description", "")))
@@ -519,7 +518,7 @@ async def match_row(
             )
             for m in mappings
         )
-        normal = normalized in {
+        normal = bool(normalized) and normalized in {
             normalize_text(t) for t in [text, item.get("name", ""), *aliases]
         }
         words = keywords(item_text(item))
@@ -594,8 +593,9 @@ async def match_row(
         except (httpx.HTTPError, ValueError, KeyError, TypeError, IndexError):
             base["ai_unavailable"] = True
     short = scored[: max(1, min(config.max_candidates, 20))]
-    explanation = "Sugjerim nga krahasimi i kodit, tekstit ose termave teknikë; kërkohet miratim njerëzor."
+    explanation = "Përputhja me rezultatin më të lartë u miratua automatikisht."
     ai_issues = []
+    ai_candidate_id = None
     if config.base_url and config.ai_model and config.api_key:
         try:
             ai = await compare_with_ai(row, [s["item"] for s in short], config)
@@ -603,14 +603,11 @@ async def match_row(
                 selected = next(
                     s for s in short if s["item"]["id"] == ai["candidate_id"]
                 )
-                selected = dict(selected)
+                ai_candidate_id = ai["candidate_id"]
                 selected.update(
                     confidence=min(1.0, max(0.0, float(ai["confidence"]))),
                     method=selected["method"] + "+ai",
                 )
-                short = [selected] + [
-                    s for s in short if s["item"]["id"] != ai["candidate_id"]
-                ]
                 ai_issues = [str(v)[:1000] for v in ai.get("discrepancies", [])[:20]]
                 if not ai.get("compatible"):
                     ai_issues.append(
@@ -618,12 +615,6 @@ async def match_row(
                     )
                 explanation = str(ai.get("explanation") or explanation)[:2000]
             else:
-                short[0] = dict(
-                    short[0],
-                    confidence=min(
-                        short[0]["confidence"], config.medium_threshold - 0.01
-                    ),
-                )
                 ai_issues.append("Krahasimi AI nuk konfirmoi asnjë kandidat.")
         except (
             httpx.HTTPError,
@@ -634,12 +625,17 @@ async def match_row(
             StopIteration,
         ):
             base["ai_unavailable"] = True
+    # AI may change a score, but cannot override the ranking. Reconsider every
+    # available candidate, including those outside the AI shortlist.
+    scored.sort(key=lambda result: result["confidence"], reverse=True)
+    short = scored[: max(2, min(config.max_candidates, 20))]
     best = short[0]
+    if ai_candidate_id is not None and best["item"]["id"] != ai_candidate_id:
+        ai_issues = []
+        explanation = "Përputhja me rezultatin më të lartë u miratua automatikisht."
     issues, factor = discrepancies(row, best["item"])
     issues += ai_issues
     confidence = best["confidence"]
-    if issues:
-        confidence = min(confidence, config.high_threshold - 0.01)
     # Only a unique code or unique approved mapping can disambiguate close
     # candidates. Duplicate normalized codes/descriptions and conflicting learned
     # approvals remain reviewable even if shortlist size is one or AI picks one.
@@ -658,15 +654,12 @@ async def match_row(
         issues.append(
             "Disa kandidatë kanë rezultate të afërta; kontrolloni alternativat."
         )
-        confidence = min(confidence, config.high_threshold - 0.01)
     classification = (
         "high"
         if confidence >= config.high_threshold and not issues
         else "medium"
         if confidence >= config.medium_threshold
         else "low"
-        if confidence >= config.low_threshold
-        else "no_match"
     )
     base["alternatives"] = [
         {
@@ -678,8 +671,6 @@ async def match_row(
         }
         for s in short[1:6]
     ]
-    if classification == "no_match":
-        return dict(base, discrepancies=issues)
     item = best["item"]
     return dict(
         base,
@@ -693,7 +684,7 @@ async def match_row(
         discrepancies=issues,
         unit_compatible=factor is not None,
         price_factor=str(factor) if factor is not None else None,
-        review_status="suggested" if classification == "high" else "needs_review",
+        review_status="approved",
     )
 
 

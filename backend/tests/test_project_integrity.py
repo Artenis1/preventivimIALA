@@ -78,7 +78,7 @@ def test_explicit_manual_price_clears_suggested_catalog_item(client, price):
     row = imported["rows"][0]
     url = f"/api/projects/{pid}/rows/{row['id']}"
     response = client.patch(
-        url, json={"item_id": None, "decision": "approved", "unit_price": "77"}
+        url, json={"item_id": None, "decision": "approved", "unit_price": "77", "confirm_override": True}
     )
     assert response.status_code == 200, response.text
     assert response.json()["item_id"] is None
@@ -123,6 +123,12 @@ def test_bulk_approval_rechecks_item_version_even_when_price_unchanged(client, p
     row = imported["rows"][0]
     response = client.post(f"/api/projects/{pid}/match")
     assert response.status_code == 200, response.text
+    assert response.json()["rows"][0]["decision"] == "approved"
+    # Simulate a pending legacy suggestion to exercise bulk version validation.
+    assert client.patch(
+        f"/api/projects/{pid}/rows/{row['id']}",
+        json={"decision": "pending", "confirm_override": True},
+    ).status_code == 200
     assert len(client.get(f"/api/projects/{pid}/approve-preview").json()["rows"]) == 1
     change_price(client, price, description="Furnizim beton C40/50")
     assert client.get(f"/api/projects/{pid}/approve-preview").json()["rows"] == []

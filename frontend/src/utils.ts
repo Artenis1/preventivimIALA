@@ -15,10 +15,9 @@ export const list = <T>(value: T[] | { items?: T[]; results?: T[] }): T[] =>
 export function eligibleRows(rows: any[]) {
   return rows.filter(
     (r) =>
-      r.decision !== "approved" &&
-      r.match_result?.classification === "high" &&
-      r.match_result?.unit_compatible !== false &&
-      !r.match_result?.discrepancies?.length,
+      r.decision === "pending" &&
+      r.match_result?.suggested_item_id != null &&
+      r.match_result?.unit_compatible !== false,
   );
 }
 export function projectPayload(form: Record<string, any>) {

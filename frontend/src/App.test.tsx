@@ -261,3 +261,57 @@ describe("Albanian workspace", () => {
     );
   });
 });
+
+it("shows automatic approval alongside a zero confidence score", async () => {
+  const project = { id: 1, name: "FV", currency: "EUR", status: "draft" };
+  const row = {
+    id: 12,
+    item_number: "1",
+    description: "Asfalt rrugor",
+    unit: "m3",
+    quantity: "2",
+    unit_price: "100",
+    original_unit_price: "100",
+    total: "200",
+    item_id: 5,
+    decision: "approved",
+    notes: "",
+    price_snapshot: { code: "C25", name: "Beton" },
+    match_result: {
+      suggested_item_id: 5,
+      classification: "low",
+      confidence: 0,
+      review_status: "approved",
+      discrepancies: [],
+    },
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) =>
+      url === "/api/projects"
+        ? json([project])
+        : url === "/api/prices"
+          ? json([])
+          : json({
+              project,
+              rows: [row],
+              totals: { grand_total: "200" },
+              versions: [],
+            }),
+    ),
+  );
+  render(
+    <Review
+      projectId={1}
+      mode="review"
+      onProject={vi.fn()}
+      onNavigate={vi.fn()}
+    />,
+  );
+  const description = await screen.findByText("Asfalt rrugor");
+  const tableRow = within(description.closest("tr")!);
+  expect(tableRow.getByText("Miratuar")).toBeInTheDocument();
+  expect(tableRow.getByText("Besim i ulët")).toBeInTheDocument();
+  expect(tableRow.getByText(/0%/)).toBeInTheDocument();
+  expect(tableRow.getByText(/C25/)).toBeInTheDocument();
+});

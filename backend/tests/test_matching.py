@@ -28,7 +28,7 @@ async def test_exact_code_and_normalization(item):
     assert result["suggested_item_id"] == 1
     assert result["method"] == "code"
     assert result["classification"] == "high"
-    assert result["review_status"] == "suggested"  # never approved by AI
+    assert result["review_status"] == "approved"
     result = await matching.match_row(
         {"description": " MONTIM, i paneleve FOTOVOLTAIKE! ", "unit": "copë"}, [item]
     )
@@ -78,12 +78,14 @@ async def test_incompatible_units_not_automatic(item):
 
 
 @pytest.mark.asyncio
-async def test_missing_unknown_description_has_no_price(item):
+async def test_zero_confidence_candidate_is_approved(item):
     result = await matching.match_row(
         {"description": "Asfalt rrugor", "unit": "m2"}, [item]
     )
-    assert result["classification"] == "no_match"
-    assert result["suggested_unit_price"] is None
+    assert result["classification"] == "low"
+    assert result["suggested_item_id"] == item["id"]
+    assert result["confidence"] == 0
+    assert result["review_status"] == "approved"
 
 
 @pytest.mark.asyncio
@@ -458,3 +460,89 @@ def test_environment_low_threshold_inference_and_explicit_override(monkeypatch):
     assert matching.MatchingConfig.from_env().low_threshold == 0.2
     monkeypatch.setenv("MATCH_LOW_THRESHOLD", "0.1")
     assert matching.MatchingConfig.from_env().low_threshold == 0.1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("description", ["", "Asfalt rrugor"])
+async def test_empty_candidate_list_is_unmatched(description):
+    result = await matching.match_row({"description": description}, [])
+    assert result["suggested_item_id"] is None
+    assert result["classification"] == "no_match"
+    assert result["review_status"] == "unmatched"
+    assert result["explanation"] == "No match found"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("ai_id,score,expected", [(2, 0.01, 1), (1, 0.01, 2), (2, 0.999, 2)])
+async def test_ai_scores_are_ranked_against_all_candidates(monkeypatch, ai_id, score, expected):
+    async def compare(*args):
+        return {"candidate_id": ai_id, "confidence": score, "compatible": True,
+                "explanation": "Comparison", "discrepancies": []}
+
+    monkeypatch.setattr(matching, "compare_with_ai", compare)
+    items = [
+        {"id": 1, "description": "Beton C25/30", "unit": "m3", "price": "100"},
+        {"id": 2, "description": "Beton C20/25", "unit": "m3", "price": "80"},
+    ]
+    result = await matching.match_row(
+        {"description": "Beton C25/30", "unit": "m3"}, items,
+        config={"base_url": "https://ai.example/v1", "api_key": "test", "ai_model": "compare"},
+    )
+    assert result["suggested_item_id"] == expected
+    assert result["review_status"] == "approved"
+    assert all(result["confidence"] >= alt["confidence"] for alt in result["alternatives"])
+    if expected == ai_id:
+        assert result["confidence"] == score
+
+
+@pytest.mark.asyncio
+async def test_ai_abstention_does_not_remove_or_reduce_best_match(monkeypatch, item):
+    async def compare(*args):
+        return {"candidate_id": None}
+
+    monkeypatch.setattr(matching, "compare_with_ai", compare)
+    result = await matching.match_row(
+        {"code": item["code"], "description": item["description"], "unit": item["unit"]},
+        [item], config={"base_url": "https://ai.example/v1", "api_key": "test", "ai_model": "compare"},
+    )
+    assert result["suggested_item_id"] == item["id"]
+    assert result["confidence"] == 0.99
+    assert result["review_status"] == "approved"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("score", [0, 0.01, 0.2])
+async def test_low_confidence_and_legacy_low_threshold_never_block_approval(monkeypatch, item, score):
+    async def compare(*args):
+        return {"candidate_id": item["id"], "confidence": score, "compatible": True,
+                "explanation": "Weak match", "discrepancies": []}
+
+    monkeypatch.setattr(matching, "compare_with_ai", compare)
+    result = await matching.match_row(
+        {"description": "Asfalt rrugor", "unit": item["unit"]}, [item],
+        config=matching.MatchingConfig(base_url="https://ai.example/v1", api_key="test",
+                                       ai_model="compare", low_threshold=0.95),
+    )
+    assert result["confidence"] == score
+    assert result["review_status"] == "approved"
+    assert result["suggested_item_id"] == item["id"]
+    assert result["classification"] == "low"
+
+
+@pytest.mark.asyncio
+async def test_demoted_ai_match_reconsiders_candidates_outside_shortlist(monkeypatch):
+    async def compare(*args):
+        return {"candidate_id": 1, "confidence": 0, "compatible": True,
+                "explanation": "Weak match", "discrepancies": []}
+
+    monkeypatch.setattr(matching, "compare_with_ai", compare)
+    result = await matching.match_row(
+        {"description": "Beton C25/30", "unit": "m3"},
+        [{"id": 1, "description": "Beton C25/30", "unit": "m3"},
+         {"id": 2, "description": "Beton C20/25", "unit": "m3"}],
+        config=matching.MatchingConfig(base_url="https://ai.example/v1", api_key="test",
+                                       ai_model="compare", max_candidates=1),
+    )
+    assert result["suggested_item_id"] == 2
+    assert result["confidence"] > 0
+    assert result["review_status"] == "approved"

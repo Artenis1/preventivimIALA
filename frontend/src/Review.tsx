@@ -125,8 +125,8 @@ export default function Review({
               : "Rishikimi i përputhjeve"}
           </h1>
           <p>
-            Kontrolloni fushën e punës dhe njësitë përpara miratimit të çdo
-            çmimi.
+            Përputhja më e mirë miratohet automatikisht. Kontrolloni besimin,
+            fushën e punës dhe njësitë.
           </p>
         </div>
         {project && <Badge status={project.status || "draft"} />}
@@ -181,7 +181,7 @@ export default function Review({
                   onClick={() =>
                     action(
                       () => send(`/projects/${selected}/match`, "POST"),
-                      "Përputhjet u llogaritën. Sugjerimet kërkojnë kontroll teknik.",
+                      "Përputhjet më të mira u miratuan automatikisht. Kontrolloni besimin dhe paralajmërimet.",
                     )
                   }
                 >
@@ -202,12 +202,12 @@ export default function Review({
                         [];
                       if (!ids.length) {
                         setMessage(
-                          "Nuk ka përputhje me besim të lartë që mund të miratohen në grup.",
+                          "Nuk ka përputhje në pritje që mund të miratohen në grup.",
                         );
                         return;
                       }
                       prompt(
-                        "Mirato sugjerimet me besim të lartë?",
+                        "Mirato përputhjet më të mira?",
                         `${ids.length} rreshta do të miratohen. Kontrolloni përputhshmërinë teknike: besimi i modelit nuk është garanci saktësie. ${preview.warnings?.join(" ") || ""}\n\n${(preview.rows || []).map((r: any) => `${r.item_number} · ${r.description} → ${prices.find((p) => p.id === r.match_result?.suggested_item_id)?.code || ""} · ${number(Number(r.match_result?.confidence || 0) * 100)}%`).join("\n")}`,
                         () =>
                           send(`/projects/${selected}/approve-bulk`, "POST", {
@@ -386,8 +386,9 @@ export default function Review({
                 </div>
               )}
               <div className="table-footer">
-                Sugjerimet e AI nuk caktojnë vetë çmime. Vetëm vendimet e
-                miratuara përfshihen në preventiv.
+                Kandidati me përqindjen më të lartë miratohet automatikisht,
+                edhe kur besimi është i ulët. Kontrolloni përqindjen dhe
+                paralajmërimet.
               </div>
             </div>
             <div className="estimate-bottom">

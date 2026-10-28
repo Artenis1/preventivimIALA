@@ -22,7 +22,7 @@ Hapni `http://localhost:8080` dhe regjistroni llogarinë tuaj. Nuk ka përdorues
 1. Regjistrohuni dhe shtoni artikuj në databazën e çmimeve. Përcaktoni nëse çmimi përfshin furnizimin, instalimin dhe TVSH-në; çmimi i blerjes nuk barazohet me çmimin e punës së instaluar.
 2. Te cilësimet vendosni kurset e nevojshme `EUR:ALL` ose `ALL:EUR`. Sistemi nuk merr një kurs të supozuar dhe nuk bashkon monedha pa konvertim të përcaktuar.
 3. Krijoni një projekt. Ngarkoni `.xlsx` ose `.xlsm`, zgjidhni fletën, shikoni pamjen paraprake dhe korrigjoni hartëzimin e kolonave. Origjinali ruhet pa ndryshime. `.xls` nuk mbështetet.
-4. Ekzekutoni përputhjen dhe shqyrtoni sugjerimet, njësitë, dallimet teknike dhe kandidatët alternativë. Sugjerimi i AI nuk e miraton vetë një çmim. Përputhja e pasigurt ose e munguar kërkon ndërhyrje njerëzore.
+4. Ekzekutoni përputhjen dhe shqyrtoni sugjerimet, njësitë, dallimet teknike dhe kandidatët alternativë. Kandidati me përqindjen më të lartë miratohet automatikisht edhe me besim të ulët; përqindja dhe paralajmërimet mbeten të dukshme. Pa kandidatë, rreshti mbetet pa miratim me “No match found”. Kur konvertimi i njësisë ose monedhës mungon, përputhja miratohet por çmimi mbetet i papërcaktuar dhe totali i paplotë.
 5. Miratoni rreshtat, kontrolloni përllogaritjet dhe finalizoni me konfirmim. Çmimet ruhen si fotografi e përzgjedhjes; ndryshimi i databazës nuk ndryshon fshehurazi preventivin.
 6. Eksportoni preventivin standard ose një kopje të plotësuar të shabllonit fillestar. Për shabllone komplekse ruajtja e çdo elementi vizual nuk garantohet; kontrolloni skedarin përfundimtar në Excel.
 

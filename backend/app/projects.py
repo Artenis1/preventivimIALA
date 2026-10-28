@@ -279,7 +279,7 @@ async def matching(
         db.flush()
     changed = 0
     for row in rows_for(db, project):
-        # Keep every explicit human decision, including rejection, until manually revised.
+        # Preserve existing approvals and explicit rejections until manually revised.
         if row.decision != "pending":
             continue
         candidates = [
@@ -299,19 +299,11 @@ async def matching(
             try:
                 vector = await embed_text(row.description, config)
                 ranked = semantic_candidates(db, user.id, vector)
-                ids = {entry["id"] for entry in ranked}
-                # Always retain exact/normalized candidates in addition to vector retrieval.
-                candidates = [
-                    c
-                    for c in candidates
-                    if c["id"] in ids
-                    or (
-                        row.code
-                        and normalize_text(c["code"]) == normalize_text(row.code)
-                    )
-                    or normalize_text(c["description"])
-                    == normalize_text(row.description)
-                ]
+                similarities = {entry["id"]: entry["similarity"] for entry in ranked}
+                # Retrieval must not discard a higher-scoring text candidate.
+                for candidate in candidates:
+                    if candidate["id"] in similarities:
+                        candidate["_semantic_similarity"] = similarities[candidate["id"]]
             except (httpx.HTTPError, ValueError, KeyError, TypeError):
                 embedding_error = True
         row_data = asdict(row)
@@ -320,7 +312,8 @@ async def matching(
         result = await match_row(row_data, candidates, mappings, config)
         if embedding_error:
             result["ai_unavailable"] = True
-        if result["suggested_item_id"]:
+        snap = None
+        if result["suggested_item_id"] is not None:
             item = next(i for i in items if i.id == result["suggested_item_id"])
             try:
                 snap = price_snapshot(item, row, user, project)
@@ -329,14 +322,25 @@ async def matching(
                 result["suggested_item_version"] = item.version
                 if snap.get("warnings"):
                     result["discrepancies"] += snap["warnings"]
-                    result["classification"] = "medium"
+                    if result["classification"] == "high":
+                        result["classification"] = "medium"
             except ValueError as e:
                 result["discrepancies"].append(str(e))
-                result["classification"] = "medium"
+                if result["classification"] == "high":
+                    result["classification"] = "medium"
                 result["suggested_unit_price"] = None
+            # Automatic approvals must not become learned human mappings: that
+            # would inflate a weak match to 98% on subsequent runs.
+            row.item_id = item.id
+            row.decision = "approved"
+            row.approved_by = None
+            row.approved_at = datetime.now(timezone.utc)
+            row.price_snapshot = snap
+            row.original_unit_price = Decimal(snap["unit_price"]) if snap else None
+            row.unit_price = row.original_unit_price
         row.match_result = json_safe(result)
         changed += 1
-    audit(db, user, "matching.suggest", "project", project.id, {"rows": changed})
+    audit(db, user, "matching.auto_approve", "project", project.id, {"rows": changed})
     db.commit()
     return {"matched": changed, **payload(db, project)}
 
@@ -380,6 +384,8 @@ def approve(db, user, project, row, item, override=None, notes=""):
     row.original_unit_price = Decimal(snapshot["unit_price"])
     row.unit_price = override if override is not None else row.original_unit_price
     row.decision = "approved"
+    if row.match_result:
+        row.match_result = {**row.match_result, "review_status": "approved"}
     row.approved_by = user.id
     row.approved_at = datetime.now(timezone.utc)
     row.notes = notes
@@ -473,6 +479,13 @@ def decide(
         row.approved_by = None
         row.approved_at = None
         row.notes = notes
+    if row.match_result:
+        row.match_result = {
+            **row.match_result,
+            "review_status": row.decision if row.decision != "pending" else (
+                "needs_review" if row.match_result.get("suggested_item_id") is not None else "unmatched"
+            ),
+        }
     audit(
         db,
         user,
@@ -491,8 +504,6 @@ def eligible(db, user, project):
         result = row.match_result or {}
         if (
             row.decision != "pending"
-            or result.get("classification") != "high"
-            or result.get("discrepancies")
             or result.get("suggested_unit_price") is None
         ):
             continue
@@ -506,7 +517,7 @@ def eligible(db, user, project):
             continue
         try:
             snapshot = price_snapshot(item, row, user, project)
-            if snapshot.get("warnings") or Decimal(snapshot["unit_price"]) != Decimal(
+            if Decimal(snapshot["unit_price"]) != Decimal(
                 str(result["suggested_unit_price"])
             ):
                 continue

@@ -66,20 +66,9 @@ def test_full_workflow_and_snapshots(client, price):
     match = result.json()["rows"][0]["match_result"]
     assert match["method"] == "code"
     preview = client.get(f"/api/projects/{pid}/approve-preview").json()
-    assert len(preview["rows"]) == 1
-    assert (
-        client.post(
-            f"/api/projects/{pid}/approve-bulk",
-            json={"confirm": False, "row_ids": [row["id"]]},
-        ).status_code
-        == 422
-    )
-    approved = client.post(
-        f"/api/projects/{pid}/approve-bulk",
-        json={"confirm": True, "row_ids": [row["id"]]},
-    )
-    assert approved.status_code == 200, approved.text
-    assert approved.json()["totals"]["grand_total"] == "276.00"
+    assert preview["rows"] == []
+    assert result.json()["rows"][0]["decision"] == "approved"
+    assert result.json()["totals"]["grand_total"] == "276.00"
     assert (
         client.post(f"/api/projects/{pid}/finalize", json={"confirm": True}).status_code
         == 200
@@ -145,9 +134,9 @@ def test_missing_currency_and_incompatible_units(client, price):
     assert (
         client.patch(
             f"/api/projects/{pid}/rows/{row['id']}",
-            json={"item_id": price["id"], "decision": "approved"},
+            json={"item_id": price["id"], "decision": "approved", "confirm_override": True},
         ).status_code
-        == 422
+        == 200
     )
     assert (
         client.post(f"/api/projects/{pid}/finalize", json={"confirm": True}).status_code
@@ -247,3 +236,64 @@ def test_settings_rates_and_dashboard(client, price):
     data = client.get("/api/dashboard").json()
     assert data["total_prices"] == 1
     assert data["total_values"] == {"ALL": "0", "EUR": "0"}
+
+
+def test_weak_match_is_persisted_and_exported_as_approved(client, price):
+    project = create_project(client)
+    pid = project["id"]
+    upload_boq(client, project, description="Asfalt rrugor", code="UNKNOWN")
+    response = client.post(f"/api/projects/{pid}/match")
+    assert response.status_code == 200, response.text
+    row = response.json()["rows"][0]
+    assert row["decision"] == "approved"
+    assert row["item_id"] == price["id"]
+    assert row["match_result"]["confidence"] == 0
+    assert row["match_result"]["classification"] == "low"
+    assert row["match_result"]["review_status"] == "approved"
+    assert Decimal(row["unit_price"]) == 100
+    assert not response.json()["totals"]["incomplete"]
+    stored = client.get(f"/api/projects/{pid}").json()["rows"][0]
+    for field in ("decision", "item_id", "unit_price", "price_snapshot", "match_result"):
+        assert stored[field] == row[field]
+    for format in ("standard", "original"):
+        export = client.get(f"/api/projects/{pid}/export?format={format}")
+        assert export.status_code == 200, export.text
+        sheet = load_workbook(BytesIO(export.content)).worksheets[0]
+        headers = {cell.value: cell.column for cell in sheet[1]}
+        assert sheet.cell(2, headers["Approval status"]).value == "approved"
+        confidence = sheet.cell(2, headers["Matching confidence"])
+        assert confidence.value == 0
+        assert confidence.number_format == "0.00%"
+    # Re-running must not teach the matcher that an automatic weak match is strong.
+    rerun = client.post(f"/api/projects/{pid}/match").json()["rows"][0]
+    assert rerun["match_result"]["confidence"] == 0
+
+
+def test_no_candidates_remain_unapproved(client, user):
+    project = create_project(client)
+    upload_boq(client, project)
+    pid = project["id"]
+    response = client.post(f"/api/projects/{pid}/match")
+    assert response.status_code == 200, response.text
+    row = response.json()["rows"][0]
+    assert row["decision"] == "pending"
+    assert row["item_id"] is None
+    assert row["match_result"]["explanation"] == "No match found"
+    assert row["match_result"]["classification"] == "no_match"
+    assert client.get(f"/api/projects/{pid}").json()["rows"][0] == row
+
+
+def test_automatic_match_can_be_rejected_and_status_stays_consistent(client, price):
+    project = create_project(client)
+    pid = project["id"]
+    upload_boq(client, project)
+    row = client.post(f"/api/projects/{pid}/match").json()["rows"][0]
+    rejected = client.patch(
+        f"/api/projects/{pid}/rows/{row['id']}",
+        json={"decision": "rejected", "confirm_override": True},
+    )
+    assert rejected.status_code == 200, rejected.text
+    assert rejected.json()["match_result"]["review_status"] == "rejected"
+    response = client.post(f"/api/projects/{pid}/match").json()
+    assert response["rows"][0]["decision"] == "rejected"
+    assert response["rows"][0]["unit_price"] is None

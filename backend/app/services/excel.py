@@ -328,6 +328,8 @@ def _warning(row: dict) -> str:
     )
     if isinstance(warnings, list):
         warnings = "; ".join(str(value) for value in warnings)
+    if (row.get("match_result") or {}).get("classification") == "no_match":
+        warnings = "; ".join(filter(None, [str(warnings), "No match found"]))
     note = str(row.get("notes") or "")
     if row.get("unit_price") is None:
         warnings = "; ".join(filter(None, [str(warnings), "Pa çmim / i pazgjidhur"]))
@@ -387,6 +389,8 @@ def export_standard(project: dict, rows: list[dict], totals: dict) -> bytes:
             "Çmimi njësi",
             "Vlera",
             "Shënime / paralajmërime",
+            "Approval status",
+            "Matching confidence",
         ]
     )
     for row in rows:
@@ -403,6 +407,8 @@ def export_standard(project: dict, rows: list[dict], totals: dict) -> bytes:
                 price,
                 total,
                 _safe_text(_warning(row)),
+                row.get("decision", "pending"),
+                (row.get("match_result") or {}).get("confidence"),
             ]
         )
     sheet.freeze_panes = "C2"
@@ -415,6 +421,8 @@ def export_standard(project: dict, rows: list[dict], totals: dict) -> bytes:
         "E": 20,
         "F": 22,
         "G": 65,
+        "H": 20,
+        "I": 22,
     }.items():
         sheet.column_dimensions[column].width = width
     for cell in sheet[1]:
@@ -423,6 +431,7 @@ def export_standard(project: dict, rows: list[dict], totals: dict) -> bytes:
     for row in sheet.iter_rows(min_row=2):
         for cell in row:
             cell.alignment = Alignment(vertical="top", wrap_text=True)
+        row[8].number_format = "0.00%"
         for cell in row[3:6]:
             cell.number_format = "#,##0.00"
     sheet.sheet_properties.pageSetUpPr.fitToPage = True
@@ -493,6 +502,8 @@ def export_original(
             ("unit_price", "existing_unit_price", "Çmimi njësi"),
             ("total", "existing_total", "Vlera"),
             ("warnings", "", "Shënime / paralajmërime"),
+            ("decision", "", "Approval status"),
+            ("confidence", "", "Matching confidence"),
         ]:
             mapped = mapping.get(source_key) if source_key else None
             if mapped is not None and (
@@ -526,6 +537,11 @@ def export_original(
             worksheet.cell(source_row, columns["unit_price"]).value = price
             worksheet.cell(source_row, columns["total"]).value = total
             worksheet.cell(source_row, columns["warnings"], _safe_text(_warning(row)))
+            worksheet.cell(source_row, columns["decision"], row.get("decision", "pending"))
+            worksheet.cell(source_row, columns["confidence"]).value = (
+                row.get("match_result") or {}
+            ).get("confidence")
+            worksheet.cell(source_row, columns["confidence"]).number_format = "0.00%"
             for field in ("unit_price", "total"):
                 worksheet.cell(source_row, columns[field]).number_format = "#,##0.00"
         # External workbook links and VBA were removed on load. Remove hyperlinks
